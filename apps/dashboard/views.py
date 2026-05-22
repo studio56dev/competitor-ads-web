@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Sum
 from django.shortcuts import get_object_or_404, render
 
@@ -6,18 +7,32 @@ from apps.ads.services import cluster_by_copy, summarize_ads
 from apps.catalog.models import Brand, Competitor, CompetitorSet
 
 
+def _no_org(request):
+    return render(request, "dashboard/no_organization.html")
+
+
+@login_required
 def home(request):
+    org = request.user_organization
+    if not org:
+        return _no_org(request)
     brands = (
-        Brand.objects.annotate(
+        Brand.objects.filter(organization=org)
+        .annotate(
             set_count=Count("sets", distinct=True),
             ad_count=Count("sets__competitors__ads", distinct=True),
-        ).order_by("name")
+        )
+        .order_by("name")
     )
     return render(request, "dashboard/home.html", {"brands": brands})
 
 
+@login_required
 def brand_detail(request, brand_slug):
-    brand = get_object_or_404(Brand, slug=brand_slug)
+    org = request.user_organization
+    if not org:
+        return _no_org(request)
+    brand = get_object_or_404(Brand, slug=brand_slug, organization=org)
     sets = (
         brand.sets.annotate(
             competitor_count=Count("competitors", distinct=True),
@@ -27,10 +42,15 @@ def brand_detail(request, brand_slug):
     return render(request, "dashboard/brand_detail.html", {"brand": brand, "sets": sets})
 
 
+@login_required
 def set_detail(request, brand_slug, set_slug):
+    org = request.user_organization
+    if not org:
+        return _no_org(request)
     cs = get_object_or_404(
         CompetitorSet.objects.select_related("brand"),
         brand__slug=brand_slug, slug=set_slug,
+        brand__organization=org,
     )
     competitors = (
         cs.competitors.annotate(
@@ -44,23 +64,23 @@ def set_detail(request, brand_slug, set_slug):
     )
 
 
+@login_required
 def competitor_detail(request, brand_slug, set_slug, competitor_slug):
+    org = request.user_organization
+    if not org:
+        return _no_org(request)
     competitor = get_object_or_404(
         Competitor.objects.select_related("set__brand"),
         set__brand__slug=brand_slug,
         set__slug=set_slug,
         slug=competitor_slug,
+        set__brand__organization=org,
     )
     ads = list(competitor.ads.all())
     stats = summarize_ads(ads)
 
-    # Cluster analysis using dict-style accessors for compatibility
     ad_dicts = [
-        {
-            "bodyCopy": a.body_copy,
-            "headline": a.headline,
-            "variant": a.variant_text,
-        }
+        {"bodyCopy": a.body_copy, "headline": a.headline, "variant": a.variant_text}
         for a in ads
     ]
     clusters = cluster_by_copy(ad_dicts)[:8]

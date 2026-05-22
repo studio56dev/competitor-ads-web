@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Giriş yap — Competitor Ads{% endblock %}
+
+{% block content %}
+<div class="auth-box">
+  <h1>Giriş yap</h1>
+  {% if form.errors %}
+    <div class="error">Kullanıcı adı veya parola yanlış.</div>
+  {% endif %}
+  {% if next and request.user.is_authenticated %}
+    <div class="error">Bu sayfaya erişim yetkin yok. Başka bir hesapla dene.</div>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <label>
+      Kullanıcı adı
+      <input type="text" name="username" autofocus required autocapitalize="off" autocomplete="username">
+    </label>
+    <label>
+      Parola
+      <input type="password" name="password" required autocomplete="current-password">
+    </label>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button type="submit" class="btn-primary">Giriş yap</button>
+  </form>
+</div>
+{% endblock %}

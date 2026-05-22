@@ -5,6 +5,7 @@ from django.views.static import serve as static_serve
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("accounts/", include("django.contrib.auth.urls")),
     re_path(
         r"^media/(?P<path>.*)$",
         static_serve,

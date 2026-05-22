@@ -8,6 +8,24 @@
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
+{% if user.is_authenticated %}
+<nav class="top-nav">
+  <div class="top-nav-inner">
+    <a class="brand-link" href="{% url 'home' %}">Competitor Ads</a>
+    <div class="nav-right">
+      {% if user_organization %}
+        <span class="org-chip">{{ user_organization.name }}</span>
+      {% endif %}
+      <span class="user-chip">{{ user.username }}</span>
+      {% if user.is_staff %}<a class="nav-link" href="/admin/">Admin</a>{% endif %}
+      <form method="post" action="{% url 'logout' %}" class="logout-form">
+        {% csrf_token %}
+        <button type="submit" class="nav-link nav-button">Çıkış</button>
+      </form>
+    </div>
+  </div>
+</nav>
+{% endif %}
 <div class="container">
   {% block content %}{% endblock %}
 </div>

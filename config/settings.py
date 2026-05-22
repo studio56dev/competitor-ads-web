@@ -38,6 +38,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.organizations.middleware.OrganizationMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -52,10 +53,15 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.organizations.context_processors.organization",
             ],
         },
     },
 ]
+
+LOGIN_URL = "/accounts/login/"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 WSGI_APPLICATION = "config.wsgi.application"
 
