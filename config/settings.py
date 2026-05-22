@@ -68,7 +68,7 @@ LOGOUT_REDIRECT_URL = "/accounts/login/"
 # Celery
 CELERY_BROKER_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.environ.get("REDIS_URL", "redis://redis:6379/0")
-CELERY_TIMEZONE = TIME_ZONE
+CELERY_TIMEZONE = os.environ.get("TIME_ZONE", "Europe/Istanbul")
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 min hard timeout
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
