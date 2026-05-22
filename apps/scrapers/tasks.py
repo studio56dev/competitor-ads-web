@@ -1,6 +1,7 @@
 import logging
 
 from celery import shared_task
+from django.core.files.base import ContentFile
 from django.utils import timezone
 
 from apps.ads.models import Ad
@@ -45,15 +46,13 @@ def scrape_competitor_task(self, competitor_id: int, max_scrolls: int = 6):
             run.error_message = "No Library IDs detected on page — likely blocked or rate-limited"
             log_lines.append("page text sample (first 500 chars):\n" + result.raw_text_sample[:500])
         else:
-            existing_lib_ids = set(
-                Ad.objects.filter(competitor=competitor).values_list("lib_id", flat=True)
-            )
             new_count = 0
-            now = timezone.now()
+            thumbs_saved = 0
             scraped_lib_ids: set[str] = set()
             for ad_data in result.ads:
                 lib_id = ad_data["libId"]
                 scraped_lib_ids.add(lib_id)
+                screenshot_bytes = ad_data.pop("_screenshot", None)
                 body = ad_data.get("bodyCopy", "")
                 defaults = {
                     "body_copy": body,
@@ -72,6 +71,15 @@ def scrape_competitor_task(self, competitor_id: int, max_scrolls: int = 6):
                 )
                 if created:
                     new_count += 1
+                # Only fill in a thumbnail when the Ad doesn't already have one
+                # (this preserves richer legacy/imported screenshots).
+                if screenshot_bytes and not obj.thumbnail:
+                    obj.thumbnail.save(
+                        f"ad-{lib_id}.png",
+                        ContentFile(screenshot_bytes),
+                        save=True,
+                    )
+                    thumbs_saved += 1
 
             removed = (
                 Ad.objects.filter(competitor=competitor, is_active=True)
@@ -82,7 +90,10 @@ def scrape_competitor_task(self, competitor_id: int, max_scrolls: int = 6):
             run.ads_found = len(result.ads)
             run.ads_new = new_count
             run.ads_removed = removed
-            log_lines.append(f"saved: {len(result.ads)} found / {new_count} new / {removed} marked inactive")
+            log_lines.append(
+                f"saved: {len(result.ads)} found / {new_count} new / "
+                f"{removed} marked inactive / {thumbs_saved} thumbnails added"
+            )
     except Exception as exc:
         logger.exception(f"Scrape failed for competitor {competitor_id}")
         run.status = ScrapeRun.STATUS_FAILED
