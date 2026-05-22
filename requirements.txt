@@ -1,0 +1,15 @@
+Django==5.1.4
+psycopg[binary]==3.2.3
+gunicorn==23.0.0
+dj-database-url==2.3.0
+python-dotenv==1.0.1
+whitenoise==6.8.2
+
+# Faz 2'de eklenecek
+# django-allauth==65.3.0
+# django-organizations==2.5.0
+
+# Faz 3'te eklenecek
+# celery[redis]==5.4.0
+# django-celery-beat==2.7.0
+# playwright==1.49.0
