@@ -180,11 +180,12 @@ def _detect_media_type(card_locator) -> str:
 
 
 def _largest_media_locator(card_locator):
-    """Return the locator for the largest media element inside the card.
+    """Return the locator for the largest creative img/video inside the card.
 
-    We want just the creative image/video, not the surrounding FB chrome
-    (Sponsored label, body text, page name, etc.). Picks the element with
-    the largest bounding-box area, ignoring tiny icons/avatars (<200x200).
+    Filters:
+      - Skip avatars / icons / emoji (area < 40k or any side < 200)
+      - Skip FB UI sprites (src contains '/emoji/', 'rsrc.php')
+      - For carousels FB shows multiple imgs; we pick the largest visible one
     """
     try:
         elements = card_locator.locator("img, video").all()
@@ -200,8 +201,13 @@ def _largest_media_locator(card_locator):
         if not box:
             continue
         area = box["width"] * box["height"]
-        # Filter avatars / emoji / page profile pics (typically ~40x40 or ~80x80)
         if area < 40_000 or box["width"] < 200 or box["height"] < 200:
+            continue
+        try:
+            src = (el.get_attribute("src") or "").lower()
+        except Exception:
+            src = ""
+        if any(skip in src for skip in ("/emoji/", "rsrc.php", "/static_map.php")):
             continue
         if area > largest_area:
             largest = el
@@ -209,12 +215,81 @@ def _largest_media_locator(card_locator):
     return largest
 
 
-def _extract_cta_from_dom(card_locator) -> str:
-    """Find a CTA button element inside the card and return its text.
+def _download_creative_via_page(page: Page, media_locator) -> bytes | None:
+    """Download the actual creative bytes from FB CDN using the page's session.
 
-    FB Ad Library renders the ad's CTA as a button-styled link or div near
-    the bottom of the card. We look for role='button' or a clickable element
-    with short, button-like text.
+    For <img>: use src.
+    For <video>: prefer poster, fall back to first <source>.
+    Returns the raw bytes or None.
+    """
+    if media_locator is None:
+        return None
+    try:
+        tag = (media_locator.evaluate("e => e.tagName") or "").upper()
+    except Exception:
+        return None
+    src = None
+    try:
+        if tag == "VIDEO":
+            src = media_locator.get_attribute("poster")
+            if not src:
+                inner_source = media_locator.locator("source").first
+                if inner_source.count() > 0:
+                    src = inner_source.get_attribute("src")
+        else:
+            src = media_locator.get_attribute("src")
+    except Exception:
+        return None
+    if not src or src.startswith("data:") or src.startswith("blob:"):
+        return None
+    try:
+        resp = page.request.get(src, timeout=10_000)
+    except Exception:
+        return None
+    if not resp.ok:
+        return None
+    try:
+        body = resp.body()
+    except Exception:
+        return None
+    # Sanity check: at least a few KB
+    if len(body) < 1_000:
+        return None
+    return body
+
+
+URL_LIKE_RE = re.compile(
+    r"^(https?://|www\.)", re.I
+)
+DOMAIN_LIKE_RE = re.compile(
+    r"^[a-z0-9-]+(\.[a-z0-9-]+)+$", re.I
+)
+SKIP_BUTTON_TEXTS = (
+    "See ad details", "See summary details", "See more", "See less",
+    "Reklam ayrıntılarını", "Daha fazla", "details",
+)
+
+
+def _looks_like_url(txt: str) -> bool:
+    s = txt.strip().strip(".,/")
+    if URL_LIKE_RE.search(s):
+        return True
+    if DOMAIN_LIKE_RE.match(s):
+        return True
+    # All caps + contains a dot is typical of FB's displayed link domain
+    if "." in s and s.upper() == s and any(c.isalpha() for c in s):
+        return True
+    return False
+
+
+def _extract_cta_from_dom(card_locator) -> str:
+    """Find a CTA button inside the card and return its text.
+
+    FB renders the ad's CTA as a button-styled link near the bottom. We
+    filter out:
+    - URL/domain text (FB also shows the destination URL as a link)
+    - 'See ad details' and similar housekeeping buttons
+    - Multi-line text
     """
     try:
         candidates = card_locator.locator('[role="button"], a[role="link"]').all()
@@ -227,10 +302,12 @@ def _extract_cta_from_dom(card_locator) -> str:
             continue
         if not txt or "\n" in txt:
             continue
-        if any(skip in txt for skip in ("See ad details", "See summary", "Reklam ayrıntılarını", "details")):
+        if any(skip.lower() in txt.lower() for skip in SKIP_BUTTON_TEXTS):
             continue
-        # CTAs are short — between 2 and 35 chars usually
-        if 2 <= len(txt) <= 35:
+        if _looks_like_url(txt):
+            continue
+        # CTAs are typically 2-35 chars, 1-4 words
+        if 2 <= len(txt) <= 35 and len(txt.split()) <= 4:
             return txt
     return ""
 
@@ -260,22 +337,34 @@ def _extract_ads_from_page(page: Page) -> list[dict]:
 
         parsed["mediaType"] = _detect_media_type(card)
 
-        # Prefer DOM-based CTA detection (real button), fall back to keyword scan
-        dom_cta = _extract_cta_from_dom(card)
-        if dom_cta:
-            parsed["cta"] = dom_cta
+        # CTA: keyword scan from card text already ran in _parse_card_text.
+        # Use DOM scan only as a fallback when the text scan missed it.
+        if not parsed.get("cta"):
+            parsed["cta"] = _extract_cta_from_dom(card)
 
-        # Screenshot: try to grab only the main creative element; fall back to full card
+        # Capture creative bytes — prefer downloading the actual file from FB CDN
+        # (cleanest, looks identical to legacy thumbnails). Fall back to
+        # media-element screenshot, then full-card screenshot as last resort.
         screenshot_bytes = None
         try:
             card.scroll_into_view_if_needed(timeout=2000)
             page.wait_for_timeout(150)
             media_el = _largest_media_locator(card)
+
+            # 1) Try real CDN download via page.request (uses browser cookies)
             if media_el is not None:
+                screenshot_bytes = _download_creative_via_page(page, media_el)
+
+            # 2) Fall back: screenshot of just the media element
+            if screenshot_bytes is None and media_el is not None:
                 try:
                     screenshot_bytes = media_el.screenshot(timeout=5000)
                 except Exception as exc:
-                    logger.warning(f"Card {i} ({parsed['libId']}): media screenshot failed, falling back: {exc}")
+                    logger.warning(
+                        f"Card {i} ({parsed['libId']}): media screenshot failed: {exc}"
+                    )
+
+            # 3) Last resort: full card screenshot (noisy but better than nothing)
             if screenshot_bytes is None:
                 screenshot_bytes = card.screenshot(timeout=5000)
         except Exception as exc:

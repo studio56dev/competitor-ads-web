@@ -14,6 +14,21 @@ from .models import ScrapeRun
 logger = logging.getLogger(__name__)
 
 
+def _ext_for_bytes(b: bytes) -> str:
+    """Detect image format from magic bytes so we save with the right extension."""
+    if not b:
+        return "bin"
+    if b[:3] == b"\xff\xd8\xff":
+        return "jpg"
+    if b[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png"
+    if b[:6] in (b"GIF87a", b"GIF89a"):
+        return "gif"
+    if b[:4] == b"RIFF" and b[8:12] == b"WEBP":
+        return "webp"
+    return "png"  # safe fallback (Playwright screenshots are PNG by default)
+
+
 @shared_task(bind=True)
 def scrape_competitor_task(self, competitor_id: int, max_scrolls: int = 6):
     """Scrape a single competitor and update its Ad records."""
@@ -74,8 +89,9 @@ def scrape_competitor_task(self, competitor_id: int, max_scrolls: int = 6):
                 # Only fill in a thumbnail when the Ad doesn't already have one
                 # (this preserves richer legacy/imported screenshots).
                 if screenshot_bytes and not obj.thumbnail:
+                    ext = _ext_for_bytes(screenshot_bytes)
                     obj.thumbnail.save(
-                        f"ad-{lib_id}.png",
+                        f"ad-{lib_id}.{ext}",
                         ContentFile(screenshot_bytes),
                         save=True,
                     )
