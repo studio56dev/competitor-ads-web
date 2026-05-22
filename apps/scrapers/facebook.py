@@ -30,9 +30,20 @@ COOKIE_BUTTON_TEXTS = [
     "Allow essential and optional cookies",
 ]
 CTA_KEYWORDS = [
+    # English
     "Book Now", "Learn More", "Shop Now", "Sign Up", "Contact Us",
     "Get Offer", "Reserve", "Discover", "Download", "Order Now",
     "Get Quote", "Apply Now", "Subscribe", "Get Directions",
+    "Send Message", "Call Now", "Watch More", "Play Game",
+    "Send WhatsApp Message", "Send Email", "View Menu", "Visit",
+    "Buy Tickets", "Save", "Donate", "Listen Now", "Use App",
+    "View Channel", "Get Promotions", "Request Time", "Get Showtimes",
+    "See Menu", "View Pricing",
+    # Turkish (frequent on TR ads)
+    "Rezerve Et", "Hemen Rezerve Et", "Daha Fazla Bilgi", "Şimdi Al",
+    "Şimdi Rezerve Et", "Hemen Satın Al", "Mesaj Gönder", "İletişime Geç",
+    "Hemen Ara", "Sipariş Ver", "Keşfet", "Üye Ol", "Abone Ol",
+    "Hemen İndir", "Daha Fazlasını Öğrenin", "Teklif Al",
 ]
 META_LINE_MARKERS = (
     "Library ID", "Started running", "Sponsored", "ads use this",
@@ -168,6 +179,62 @@ def _detect_media_type(card_locator) -> str:
     return "other"
 
 
+def _largest_media_locator(card_locator):
+    """Return the locator for the largest media element inside the card.
+
+    We want just the creative image/video, not the surrounding FB chrome
+    (Sponsored label, body text, page name, etc.). Picks the element with
+    the largest bounding-box area, ignoring tiny icons/avatars (<200x200).
+    """
+    try:
+        elements = card_locator.locator("img, video").all()
+    except Exception:
+        return None
+    largest = None
+    largest_area = 0
+    for el in elements:
+        try:
+            box = el.bounding_box()
+        except Exception:
+            continue
+        if not box:
+            continue
+        area = box["width"] * box["height"]
+        # Filter avatars / emoji / page profile pics (typically ~40x40 or ~80x80)
+        if area < 40_000 or box["width"] < 200 or box["height"] < 200:
+            continue
+        if area > largest_area:
+            largest = el
+            largest_area = area
+    return largest
+
+
+def _extract_cta_from_dom(card_locator) -> str:
+    """Find a CTA button element inside the card and return its text.
+
+    FB Ad Library renders the ad's CTA as a button-styled link or div near
+    the bottom of the card. We look for role='button' or a clickable element
+    with short, button-like text.
+    """
+    try:
+        candidates = card_locator.locator('[role="button"], a[role="link"]').all()
+    except Exception:
+        return ""
+    for el in candidates:
+        try:
+            txt = el.inner_text(timeout=500).strip()
+        except Exception:
+            continue
+        if not txt or "\n" in txt:
+            continue
+        if any(skip in txt for skip in ("See ad details", "See summary", "Reklam ayrıntılarını", "details")):
+            continue
+        # CTAs are short — between 2 and 35 chars usually
+        if 2 <= len(txt) <= 35:
+            return txt
+    return ""
+
+
 def _extract_ads_from_page(page: Page) -> list[dict]:
     """Tag every card, then iterate over them as locators to get text + screenshot."""
     marked = _find_and_mark_cards(page)
@@ -193,13 +260,27 @@ def _extract_ads_from_page(page: Page) -> list[dict]:
 
         parsed["mediaType"] = _detect_media_type(card)
 
+        # Prefer DOM-based CTA detection (real button), fall back to keyword scan
+        dom_cta = _extract_cta_from_dom(card)
+        if dom_cta:
+            parsed["cta"] = dom_cta
+
+        # Screenshot: try to grab only the main creative element; fall back to full card
+        screenshot_bytes = None
         try:
             card.scroll_into_view_if_needed(timeout=2000)
             page.wait_for_timeout(150)
-            parsed["_screenshot"] = card.screenshot(timeout=5000)
+            media_el = _largest_media_locator(card)
+            if media_el is not None:
+                try:
+                    screenshot_bytes = media_el.screenshot(timeout=5000)
+                except Exception as exc:
+                    logger.warning(f"Card {i} ({parsed['libId']}): media screenshot failed, falling back: {exc}")
+            if screenshot_bytes is None:
+                screenshot_bytes = card.screenshot(timeout=5000)
         except Exception as exc:
             logger.warning(f"Card {i} ({parsed['libId']}): screenshot failed: {exc}")
-            parsed["_screenshot"] = None
+        parsed["_screenshot"] = screenshot_bytes
 
         ads.append(parsed)
 
