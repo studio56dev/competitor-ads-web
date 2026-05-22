@@ -4,6 +4,7 @@ gunicorn==23.0.0
 dj-database-url==2.3.0
 python-dotenv==1.0.1
 whitenoise==6.8.2
+Pillow==11.0.0
 
 # Faz 2'de eklenecek
 # django-allauth==65.3.0

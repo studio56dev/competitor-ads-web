@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}{{ set.name }} — {{ brand.name }}{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <div class="crumb">
+    <a href="{% url 'home' %}">Dashboard</a> ›
+    <a href="{% url 'brand-detail' brand.slug %}">{{ brand.name }}</a> ›
+    {{ set.name }}
+  </div>
+  <h1>{{ set.name }}</h1>
+  <div class="meta">{{ set.description }} · {{ competitors|length }} competitor{{ competitors|length|pluralize }}</div>
+</header>
+
+<section>
+  <div class="competitor-grid">
+    {% for c in competitors %}
+      <a class="competitor-card text-only" href="{% url 'competitor-detail' brand.slug set.slug c.slug %}">
+        <div class="card-body">
+          <div class="name">{{ c.name }}</div>
+          <div class="stats-mini">
+            <span><b>{{ c.ad_count }}</b> creatives</span>
+            <span><b>{{ c.active_ad_count|default:0 }}</b> active ads</span>
+            {% if c.country %}<span>{{ c.country }}</span>{% endif %}
+          </div>
+        </div>
+      </a>
+    {% empty %}
+      <div class="empty">Bu set için competitor yok.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

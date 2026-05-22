@@ -1,22 +1,32 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="utf-8">
-  <title>Competitor Ads</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font: 15px/1.5 system-ui, -apple-system, sans-serif; max-width: 720px; margin: 60px auto; padding: 0 20px; color: #222; }
-    h1 { margin: 0 0 8px; }
-    .muted { color: #888; }
-    code { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
-    .badge { display: inline-block; background: #e8f5e9; color: #2e7d32; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-  </style>
-</head>
-<body>
-  <span class="badge">Faz 0 — auto-deploy çalışıyor ✓</span>
+{% extends "base.html" %}
+
+{% block title %}Competitor Ads Dashboard{% endblock %}
+
+{% block content %}
+<header class="page-head">
   <h1>Competitor Ads Dashboard</h1>
-  <p class="muted">Çoklu kiracı (multi-tenant) rakip reklam takip paneli.</p>
-  <p>Sonraki adımlar Faz 1: <code>Brand → Set → Competitor → Snapshot → Ad</code> modelleri ve admin paneli.</p>
-  <p><a href="/admin/">Admin paneli →</a></p>
-</body>
-</html>
+  <div class="meta">{{ brands|length }} brand{{ brands|length|pluralize }} tracked</div>
+</header>
+
+<section>
+  <div class="competitor-grid">
+    {% for b in brands %}
+      <a class="competitor-card brand-card" href="{% url 'brand-detail' b.slug %}">
+        <div class="card-body">
+          <div class="name">{{ b.name }}</div>
+          <div class="summary">{{ b.industry }}{% if b.city %} · {{ b.city }}{% endif %}</div>
+          <div class="stats-mini">
+            <span><b>{{ b.set_count }}</b> set{{ b.set_count|pluralize }}</span>
+            <span><b>{{ b.ad_count }}</b> ads tracked</span>
+          </div>
+        </div>
+      </a>
+    {% empty %}
+      <div class="empty">
+        Henüz marka yok. <a href="/admin/">Admin'den</a> ekle veya
+        <code>import_legacy_data</code> komutu ile mevcut veriyi içe aktar.
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

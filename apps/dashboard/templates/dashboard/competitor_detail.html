@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}{{ competitor.name }} — Competitor Ads{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <div class="crumb">
+    <a href="{% url 'home' %}">Dashboard</a> ›
+    <a href="{% url 'brand-detail' brand.slug %}">{{ brand.name }}</a> ›
+    <a href="{% url 'set-detail' brand.slug set.slug %}">{{ set.name }}</a> ›
+    {{ competitor.name }}
+  </div>
+  <h1>{{ competitor.name }}</h1>
+  <div class="meta">
+    <span>{{ competitor.industry }}</span>
+    {% if competitor.source_url %}
+      · <a href="{{ competitor.source_url }}" target="_blank" rel="noopener">View on Facebook Ad Library ↗</a>
+    {% endif %}
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="v">{{ stats.unique_creatives }}</div><div class="k">Unique creatives</div></div>
+  <div class="stat"><div class="v">{{ stats.total_active }}</div><div class="k">Active ads</div></div>
+  <div class="stat"><div class="v">{{ stats.video_count }}</div><div class="k">Video</div></div>
+  <div class="stat"><div class="v">{{ stats.image_count }}</div><div class="k">Image</div></div>
+  <div class="stat">
+    <div class="v">
+      {% for k, v in stats.languages.items %}{{ k }} {{ v }}{% if not forloop.last %} / {% endif %}{% endfor %}
+    </div>
+    <div class="k">Languages</div>
+  </div>
+</div>
+
+{% if clusters %}
+<section>
+  <h2>Copy clusters</h2>
+  <table>
+    <thead><tr><th>Copy sample</th><th>Lang</th><th>Ads</th></tr></thead>
+    <tbody>
+      {% for c in clusters %}
+        <tr>
+          <td>{{ c.sample|truncatechars:80 }}</td>
+          <td>{{ c.lang }}</td>
+          <td>{{ c.variant_total }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section>
+  <h2>Ads ({{ all_ads|length }})</h2>
+  <form method="get" class="filters">
+    <span class="label">Lang</span>
+    <a class="pill {% if lang_filter == 'all' %}active{% endif %}" href="?lang=all&format={{ fmt_filter }}&q={{ q }}">All</a>
+    <a class="pill {% if lang_filter == 'EN' %}active{% endif %}" href="?lang=EN&format={{ fmt_filter }}&q={{ q }}">EN</a>
+    <a class="pill {% if lang_filter == 'TR' %}active{% endif %}" href="?lang=TR&format={{ fmt_filter }}&q={{ q }}">TR</a>
+    <a class="pill {% if lang_filter == 'AR' %}active{% endif %}" href="?lang=AR&format={{ fmt_filter }}&q={{ q }}">AR</a>
+    <span class="label" style="margin-left:16px">Format</span>
+    <a class="pill {% if fmt_filter == 'all' %}active{% endif %}" href="?lang={{ lang_filter }}&format=all&q={{ q }}">All</a>
+    <a class="pill {% if fmt_filter == 'video' %}active{% endif %}" href="?lang={{ lang_filter }}&format=video&q={{ q }}">Video</a>
+    <a class="pill {% if fmt_filter == 'image' %}active{% endif %}" href="?lang={{ lang_filter }}&format=image&q={{ q }}">Image</a>
+    <input class="search" type="text" name="q" placeholder="Search copy…" value="{{ q }}">
+    <input type="hidden" name="lang" value="{{ lang_filter }}">
+    <input type="hidden" name="format" value="{{ fmt_filter }}">
+  </form>
+
+  <div class="ads">
+    {% for ad in ads %}
+      <div class="ad">
+        <div class="ad-head">
+          {% if ad.is_active %}<span class="tag active">Active</span>{% endif %}
+          <span class="tag lang-{{ ad.language }}">{{ ad.language }}</span>
+          <span class="tag format">{% if ad.media_type == 'video' %}▶ Video{% elif ad.media_type == 'image' %}◧ Image{% else %}{{ ad.media_type }}{% endif %}</span>
+          {% if ad.variant_text %}<span class="tag variant">multi-version</span>{% endif %}
+          <span class="lib-id">{{ ad.lib_id }}</span>
+        </div>
+        {% if ad.thumbnail %}
+          <a class="ad-thumb-link" href="{{ ad.facebook_url }}" target="_blank" rel="noopener">
+            <img class="ad-thumb" src="{{ ad.thumbnail.url }}" alt="" loading="lazy">
+            {% if ad.media_type == 'video' %}<span class="play-overlay">▶</span>{% endif %}
+          </a>
+        {% else %}
+          <div class="ad-thumb-missing">no thumbnail</div>
+        {% endif %}
+        <div class="ad-body">
+          {% if ad.headline %}<p class="headline" dir="{% if ad.language == 'AR' %}rtl{% else %}auto{% endif %}">{{ ad.headline }}</p>{% endif %}
+          <p class="copy" dir="{% if ad.language == 'AR' %}rtl{% else %}auto{% endif %}">{{ ad.body_copy|linebreaksbr }}</p>
+        </div>
+        <div class="ad-foot">
+          <span>Started {{ ad.started_text }}</span>
+          {% if ad.cta %}<span class="cta">{{ ad.cta }}</span>{% else %}<span class="muted">no CTA</span>{% endif %}
+          <a class="open" href="{{ ad.facebook_url }}" target="_blank" rel="noopener">Open ↗</a>
+        </div>
+      </div>
+    {% empty %}
+      <div class="empty">Bu filtreyle eşleşen reklam yok.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

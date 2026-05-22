@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}{{ brand.name }} — Competitor Ads{% endblock %}
+
+{% block content %}
+<header class="page-head">
+  <div class="crumb"><a href="{% url 'home' %}">Dashboard</a> › {{ brand.name }}</div>
+  <h1>{{ brand.name }}</h1>
+  <div class="meta">{{ brand.industry }}{% if brand.city %} · {{ brand.city }}{% endif %}</div>
+</header>
+
+<section>
+  <div class="competitor-grid">
+    {% for s in sets %}
+      <a class="competitor-card set-card" href="{% url 'set-detail' brand.slug s.slug %}">
+        <div class="card-body">
+          <div class="set-label">{{ s.get_subtype_display }}</div>
+          <div class="name">{{ s.name }}</div>
+          <div class="summary">{{ s.description }}</div>
+          <div class="stats-mini">
+            <span><b>{{ s.competitor_count }}</b> competitor{{ s.competitor_count|pluralize }}</span>
+            <span><b>{{ s.ad_count }}</b> ads tracked</span>
+          </div>
+        </div>
+      </a>
+    {% empty %}
+      <div class="empty">Bu marka için set yok.</div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
