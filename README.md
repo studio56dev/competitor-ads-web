@@ -20,7 +20,10 @@ docker compose exec web python manage.py migrate
 docker compose exec web python manage.py createsuperuser
 ```
 
-→ http://localhost:8000
+→ http://127.0.0.1:8000
+
+`docker compose up` otomatik olarak `docker-compose.yml + docker-compose.override.yml`'i yükler
+(dev: runserver, volume mount, port 127.0.0.1:8000).
 
 ## Production (Plesk Docker)
 
@@ -31,7 +34,8 @@ docker compose exec web python manage.py createsuperuser
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
    ```
-5. Plesk → Domain → **Docker Proxy Rules**: subdomain'i `127.0.0.1:8000` portuna yönlendir.
+   **`-f` ile çağırınca `docker-compose.override.yml` (dev) otomatik yüklenmez.**
+5. Plesk → Domain → Apache & nginx Settings → reverse proxy `127.0.0.1:8765`'e yönlendir.
 
 ## Faz haritası
 
