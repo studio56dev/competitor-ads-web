@@ -8,6 +8,30 @@ services:
       redis:
         condition: service_started
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    command: celery -A config worker -l info --concurrency=2
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    command: celery -A config beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   db:
     image: postgres:16-alpine
     environment:

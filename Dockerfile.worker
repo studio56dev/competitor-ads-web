@@ -1,0 +1,21 @@
+FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+
+COPY . .
+
+# Chromium binary ships with the base image already.
+# Default command overridden in docker-compose (worker vs beat).
+CMD ["celery", "-A", "config", "worker", "-l", "info", "--concurrency=2"]

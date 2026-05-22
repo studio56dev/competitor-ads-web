@@ -12,6 +12,14 @@ services:
       - "127.0.0.1:8000:8000"
     restart: unless-stopped
 
+  worker:
+    volumes:
+      - media_volume:/app/media
+    restart: unless-stopped
+
+  beat:
+    restart: unless-stopped
+
   db:
     restart: unless-stopped
     volumes:

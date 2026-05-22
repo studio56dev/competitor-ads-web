@@ -6,11 +6,11 @@ python-dotenv==1.0.1
 whitenoise==6.8.2
 Pillow==11.0.0
 
-# Faz 2'de eklenecek
-# django-allauth==65.3.0
-# django-organizations==2.5.0
+# Faz 3 — scraper / queue
+celery[redis]==5.4.0
+django-celery-beat==2.7.0
+# Playwright Python package — Chromium binary is bundled in the worker image
+playwright==1.49.0
 
-# Faz 3'te eklenecek
-# celery[redis]==5.4.0
-# django-celery-beat==2.7.0
-# playwright==1.49.0
+# Faz 2.5 (sonra)
+# django-allauth==65.3.0
